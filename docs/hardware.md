@@ -146,6 +146,17 @@ The core is Minimig-AGA (vendored in `modules/minimig`, see `modules/VENDOR.md`)
 Removed from the build: AGA, 68020/030, RTG, IDE/Gayle, A2065, Toccata, CDTV, Akiko/CD32, MT-32, UART, floppy drives,
 the shared folder.
 
+Clocks: Minimig's PLL is built for PAL and reconfigured to NTSC right after power-on, as Minimig does when the machine
+reports NTSC. It drives three clocks:
+
+| clock | frequency | used for |
+|---|---|---|
+| machine clock | 28.636 MHz (MAME's `CLK_28M_NTSC`) | the chipset and the 68000 (7.159 MHz, on phase enables) |
+| 4x clock | 114.5 MHz | the SDRAM and the 68000's phase enables |
+| video clock | 57.27 MHz | the MiSTer video path. Minimig uses 114 MHz here for ECS / AGA's 28 MHz pixels; OCS's are 14 MHz at most |
+
+The timing constraints add the NTSC clock's 0.92 % to the setup checks (`ArcadiaSystems.sdc`).
+
 ROM image (MRA `index="0"`; the layout is fixed by `rtl/arcadia_loader.v` and every MRA follows it):
 
 | offset | size | contents | written to |

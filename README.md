@@ -6,8 +6,8 @@ Amiga 500 board with a ROM cage on the expansion port, so the core is built on
 with the Arcadia ROM board, BIOS, NVRAM, coin and start inputs added. It is written from MAME 0.289's driver
 (`src/mame/amiga/arsystems.cpp`). No ROMs are in this repository.
 
-**Status.** Work in progress, not yet tested on a MiSTer. In simulation the core boots like MAME through Kickstart 1.3 and the
-OnePlay BIOS (see "What is verified").
+**Status.** First build (`releases/arcadiasystems_20261021.rbf`), not yet tested on a MiSTer. In simulation it runs like
+MAME 0.289 through Kickstart 1.3, the OnePlay BIOS, a game's load, title, coin and credit screen (see "What is verified").
 
 ## Install
 
@@ -58,10 +58,12 @@ Service mode: hold service when the BIOS has printed "INITIALIZATION OK", or pre
 
 | check | method | result |
 |---|---|---|
+| timing | Quartus 17.0, seed 1 (`releases/*.sta.summary`); the PLL is built for PAL and runs at NTSC, so the setup checks carry the 0.92 % as extra uncertainty | met on every clock: setup +1.239 ns at 114.5 MHz, +1.649 ns at 28.6 MHz, +5.081 ns at the 57.3 MHz video clock, +0.423 ns HDMI; holds positive. 34 % of the ALMs, 26 % of the RAM blocks |
 | MRAs | every MRA assembled from the MAME zips (`tools/make_mra.py <romdir>`) and compared with `tools/arcadia_rom.py` | identical, 22 sets |
 | ROM loader | the image downloaded through `rtl/arcadia_loader.v` in the simulation, the memory compared word for word with an independent C++ computation of the layout and unscrambling (`sim/run_sys.sh ... -checkload`) | identical, 1 310 720 words each for `ar_sprg`, `ar_xeon`, `ar_argh`, `ar_fasta` (not scrambled), `ar_ninj2` (zero fill) |
 | Aaargh (own memory map, no BIOS) | as below, 600 frames | the title screen identical to MAME's from frame 300 (sim 300 = MAME 297: the game starts 3 frames later), sim 450 = MAME 447 identical; from 500 the logo's colour cycle and the little dragon's animation are a step apart (phase) |
 | Space Ranger to the title, a coin | 2 400 frames from power-on (blank NVRAM) with a coin at frame 2 000 (`sim/sched_coin.txt`), every 100th frame and the ones after the coin against MAME's | frames 300-1 800 (OnePlay's NVRAM set-up, "1 Games Present", the game loading) identical; the title (1 900-2 010) identical but for the blinking "Insert coin to play" and a small animation (phase); after the coin, the credit screen with "1 CREDITS" and its countdown identical at 2 050-2 400 (4 pixels at 2 050 / 2 080, 0 from 2 100) |
+| Space Ranger, play | 2 800 frames: a coin, start, then the joystick and both buttons (`sim/sched_play.txt`), every 50th frame against MAME's | identical through the credit screen, start and the level's load (2 100-2 350); in play the same scenes and score (1 000 at 2 400, 4 000 at 2 800), the scrolling a frame apart at times (0.03-8 % of the pixels; 56 pixels at 2 800). This test found player 1 wired to the Amiga's port 1 instead of port 0 (fixed) |
 | boot, Space Ranger | the whole machine in Verilator (`sim/run_sys.sh`) against MAME 0.289 (`tools/mame_dump.sh`), first start with blank NVRAM | Kickstart 1.3, the OnePlay BIOS's resident "strap" and its warm reboot, CoolCapture into the BIOS at the same frames as MAME (245 / 246); the program counter per frame follows MAME's; chip RAM at frames 200-300 within 9-46 bytes of MAME's (interrupt-time values); frames 275 and 300 (the OnePlay screen) identical to MAME's snapshots, 0 of 174 484 pixels differ |
 
 ## Known differences / open points

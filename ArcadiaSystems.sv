@@ -79,6 +79,7 @@ localparam CONF_STR = {
 // add the 0.9 % (ArcadiaSystems.sdc).
 wire clk_114;
 wire clk_sys;
+wire clk_vid;           // the video clock: 2x the machine clock (OCS pixels are at most 14 MHz, hires; the scandoubler wants 4x)
 wire locked;
 wire ntsc;
 
@@ -87,6 +88,7 @@ pll pll
 	.refclk(CLK_50M),
 	.outclk_0(clk_114),
 	.outclk_1(clk_sys),
+	.outclk_2(clk_vid),
 	.reconfig_to_pll(reconfig_to_pll),
 	.reconfig_from_pll(reconfig_from_pll),
 	.locked(locked)
@@ -568,7 +570,7 @@ wire       hbl = fhbl | shbl | ~hs;
 
 reg ce_out = 0;
 always @(posedge CLK_VIDEO) begin
-	reg [3:0] div;
+	reg [2:0] div;
 	reg [3:0] add;
 	reg [1:0] fs_res;
 	reg old_vs;
@@ -580,12 +582,12 @@ always @(posedge CLK_VIDEO) begin
 	if(old_vs & ~vs) begin
 		fs_res <= 0;
 		div <= 0;
-		add <= 1; // 7MHz
+		add <= 1; // 7MHz (CLK_VIDEO / 8)
 		if(fs_res[0]) add <= 2; // 14MHz
 		if(fs_res[1] | ~scandoubler) add <= 4; // 28MHz
 	end
 
-	ce_out <= div[3] & !div[2:0];
+	ce_out <= div[2] & !div[1:0];
 end
 
 video_mixer #(.LINE_LENGTH(2000), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
@@ -608,7 +610,7 @@ video_mixer #(.LINE_LENGTH(2000), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.VGA_B(B)
 );
 
-assign CLK_VIDEO = clk_114;
+assign CLK_VIDEO = clk_vid;
 assign VGA_F1    = field1;
 assign VGA_R     = R;
 assign VGA_G     = G;

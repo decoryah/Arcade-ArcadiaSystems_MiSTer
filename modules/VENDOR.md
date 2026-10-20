@@ -32,8 +32,10 @@ Arcadia hardware. Each one is listed here as it is made.
   Verilator showed this: the copper ran from a stale address, read a MOVE to register 0 and stopped. The synthesized
   logic does not change.
 
-The PLL (`pll.v`, `pll.qip`, `pll/`) is copied unchanged to `rtl/`, where the MiSTer framework (`sys/pll_q17.qip`) expects
-it.
+The PLL (`pll.v`, `pll.qip`, `pll/`) is copied to `rtl/`, where the MiSTer framework (`sys/pll_q17.qip`) expects it. It
+gets a third output, `outclk_2`: the video clock, VCO / 8 = 56.750320 MHz (2x the machine clock, 57.27 MHz after the
+NTSC reconfiguration). Minimig drives the video at 114 MHz for the ECS / AGA 28 MHz pixels. At that rate the framework's
+S-video / composite encoder (`sys/yc_out.sv`) missed timing, and OCS needs no more than 57 MHz.
 
 Everything else in `modules/minimig` is as upstream. The files the core does not build (68020/030, RTG, IDE, CD32,
 CDTV, A2065, Toccata, MT-32, the HPS bridges) are kept as vendored. `minimig.v` and `Minimig.sv` are replaced by

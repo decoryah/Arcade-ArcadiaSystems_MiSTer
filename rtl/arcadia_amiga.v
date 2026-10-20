@@ -360,8 +360,11 @@ userio USERIO1
 	._fire1(_fire1),
 	._fire0_dat(_fire0_dat),
 	._fire1_dat(_fire1_dat),
-	._joy1(_joy1),
-	._joy2(_joy2),
+	// userio's game port 0 (JOY0DAT, /FIR0, POTGO DATLX/DATLY) takes its _joy2 input and port 1 its _joy1 (joy_swap off:
+	// Minimig puts MiSTer's first joystick in the Amiga's joystick port). The Arcadia has player 1 in port 0 (MAME:
+	// p1_joy -> joy_0_dat, button 1 -> /FIR0, button 2 -> DATLY), so this module's _joy1 (player 1) goes to userio's _joy2.
+	._joy1(_joy2),
+	._joy2(_joy1),
 	.joy_ana1(16'h0000),
 	.joy_ana2(16'h0000),
 	.mouse_btn(3'b000),
