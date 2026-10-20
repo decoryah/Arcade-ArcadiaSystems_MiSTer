@@ -10,6 +10,7 @@
 //     -dumpchip N,M,..  write the 512 KB of chip RAM at frames N, M, ... as <prefix>_chip_N.bin (MAME's chip_N.bin layout)
 //     -regs A,B         log the register bus (CPU and DMA writes to the custom chips, data registers left out) of frames
 //                       A..B to <prefix>_regs.txt
+//     -checkload        after the download, compare what the loader wrote with the layout computed here
 //     -preload          put the ROMs straight into the memory (only the header goes through the loader): no download time
 //
 // The image is the MRA's (tools/arcadia_rom.py). Frames are the raw beam: 14 MHz samples (hires pixels) from hsync to hsync and
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
 	std::string prefix = argv[3];
 	std::set<int> snaps;
 	int snapevery = 0, bus_a = -1, bus_b = -1, regs_a = -1, regs_b = -1;
-	bool dsw = false, watch = false, preload = false;
+	bool dsw = false, watch = false, preload = false, checkload = false;
 	std::set<int> dumps;
 	std::vector<Ev> sched;
 	for (int i = 4; i < argc; i++) {
@@ -62,6 +63,7 @@ int main(int argc, char **argv) {
 		else if (a == "-dsw") dsw = true;
 		else if (a == "-watch") watch = true;
 		else if (a == "-preload") preload = true;
+		else if (a == "-checkload") checkload = true;
 		else if (a == "-regs" && i + 1 < argc) { sscanf(argv[++i], "%d,%d", &regs_a, &regs_b); }
 		else if (a == "-dumpchip" && i + 1 < argc) {
 			char *s = argv[++i];
@@ -100,9 +102,11 @@ int main(int argc, char **argv) {
 	top->dl = 1;
 	for (int i = 0; i < 16; i++) tick();
 	auto &mem = top->rootp->tb_top->mem;
-	if (preload) {
-		// what rtl/arcadia_loader.v and gary.v make of the image, in the SRAM bridge's space: Kickstart at $780000, the BIOS at
-		// $700000, the ROM board at $200000, the scrambled low bytes fixed
+	// what rtl/arcadia_loader.v and gary.v make of the image, computed here independently: -preload writes it, -checkload
+	// compares the loader's work with it
+	auto layout = [&](auto put) {
+		// in the SRAM bridge's space: Kickstart at $780000, the BIOS at $700000, the ROM board at $200000, the scrambled low
+		// bytes fixed
 		auto unscr = [](uint8_t d, const uint8_t *p) {
 			uint8_t o = 0;
 			for (int k = 0; k < 8; k++) o |= ((d >> p[k]) & 1) << (7 - k);
@@ -117,9 +121,10 @@ int main(int argc, char **argv) {
 			if (o < 0x80000) a = 0x780000 + o;
 			else if (o < 0x100000) { a = 0x700000 + (o - 0x80000); if (bios_scr && o - 0x80000 < 0x20000) lo = unscr(lo, bios_perm); }
 			else { a = 0x200000 + (o - 0x100000); if (o - 0x100000 < 0x20000) lo = unscr(lo, perm); }
-			mem[a >> 1] = (hi << 8) | lo;
+			put(a >> 1, (uint16_t)((hi << 8) | lo));
 		}
-	}
+	};
+	if (preload) layout([&](uint32_t w, uint16_t v) { mem[w] = v; });
 	for (size_t a = 0; a < (preload ? 16 : img.size()); a++) {
 		while (top->dl_busy) tick();
 		top->dl_addr = (uint32_t)a; top->dl_data = img[a]; top->dl_wr = 1;
@@ -131,6 +136,17 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < 16; i++) tick();
 	top->dl = 0;
 	fprintf(stderr, "download done at cycle %llu\n", (unsigned long long)cyc);
+	if (checkload) {
+		uint32_t bad = 0, n = 0;
+		layout([&](uint32_t w, uint16_t v) {
+			n++;
+			if (mem[w] != v) {
+				if (bad < 10) fprintf(stderr, "  word %06x: loader %04x, expected %04x\n", w << 1, (unsigned)mem[w], v);
+				bad++;
+			}
+		});
+		fprintf(stderr, "checkload: %u of %u words differ\n", bad, n);
+	}
 
 	// run
 	const int MAXW = 1024, MAXH = 320;

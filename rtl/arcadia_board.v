@@ -64,6 +64,7 @@ module arcadia_board
 //--------------------------------------------------------------------------------------
 // NVRAM: 8K words as two byte-wide true dual-port RAMs (CPU / file)
 
+// (Quartus's true dual-port template: a port that writes reads back the new data)
 reg  [7:0] nv_hi [0:8191];
 reg  [7:0] nv_lo [0:8191];
 
@@ -71,13 +72,19 @@ wire [12:0] cpu_idx = argh ? {2'b00, address[11:1]} : address[13:1];
 reg   [7:0] cpu_q_hi, cpu_q_lo;
 
 always @(posedge clk) begin
-	if (sel_nvram && hwr) nv_hi[cpu_idx] <= data_in[15:8];
-	cpu_q_hi <= nv_hi[cpu_idx];
+	if (sel_nvram && hwr) begin
+		nv_hi[cpu_idx] <= data_in[15:8];
+		cpu_q_hi <= data_in[15:8];
+	end
+	else cpu_q_hi <= nv_hi[cpu_idx];
 end
 
 always @(posedge clk) begin
-	if (sel_nvram && lwr) nv_lo[cpu_idx] <= data_in[7:0];
-	cpu_q_lo <= nv_lo[cpu_idx];
+	if (sel_nvram && lwr) begin
+		nv_lo[cpu_idx] <= data_in[7:0];
+		cpu_q_lo <= data_in[7:0];
+	end
+	else cpu_q_lo <= nv_lo[cpu_idx];
 end
 
 assign data_out = (sel_nvram && rd) ? {cpu_q_hi, cpu_q_lo} : 16'h0000;
@@ -87,15 +94,22 @@ reg   [7:0] f_q_hi, f_q_lo;
 reg         f_odd;
 
 always @(posedge clk) begin
-	if (nv_wr && nv_addr[0]) nv_hi[nv_addr[13:1]] <= nv_din;
-	f_q_hi <= nv_hi[nv_addr[13:1]];
+	if (nv_wr && nv_addr[0]) begin
+		nv_hi[nv_addr[13:1]] <= nv_din;
+		f_q_hi <= nv_din;
+	end
+	else f_q_hi <= nv_hi[nv_addr[13:1]];
 end
 
 always @(posedge clk) begin
-	if (nv_wr && !nv_addr[0]) nv_lo[nv_addr[13:1]] <= nv_din;
-	f_q_lo <= nv_lo[nv_addr[13:1]];
-	f_odd  <= nv_addr[0];
+	if (nv_wr && !nv_addr[0]) begin
+		nv_lo[nv_addr[13:1]] <= nv_din;
+		f_q_lo <= nv_din;
+	end
+	else f_q_lo <= nv_lo[nv_addr[13:1]];
 end
+
+always @(posedge clk) f_odd <= nv_addr[0];
 
 assign nv_dout = f_odd ? f_q_hi : f_q_lo;
 

@@ -59,9 +59,17 @@ Service mode: hold service when the BIOS has printed "INITIALIZATION OK", or pre
 | check | method | result |
 |---|---|---|
 | MRAs | every MRA assembled from the MAME zips (`tools/make_mra.py <romdir>`) and compared with `tools/arcadia_rom.py` | identical, 22 sets |
+| ROM loader | the image downloaded through `rtl/arcadia_loader.v` in the simulation, the memory compared word for word with an independent C++ computation of the layout and unscrambling (`sim/run_sys.sh ... -checkload`) | identical, 1 310 720 words each for `ar_sprg`, `ar_xeon`, `ar_argh`, `ar_fasta` (not scrambled), `ar_ninj2` (zero fill) |
+| Aaargh (own memory map, no BIOS) | as below, 600 frames | the title screen identical to MAME's from frame 300 (sim 300 = MAME 297: the game starts 3 frames later), sim 450 = MAME 447 identical; from 500 the logo's colour cycle and the little dragon's animation are a step apart (phase) |
+| Space Ranger to the title, a coin | 2 400 frames from power-on (blank NVRAM) with a coin at frame 2 000 (`sim/sched_coin.txt`), every 100th frame and the ones after the coin against MAME's | frames 300-1 800 (OnePlay's NVRAM set-up, "1 Games Present", the game loading) identical; the title (1 900-2 010) identical but for the blinking "Insert coin to play" and a small animation (phase); after the coin, the credit screen with "1 CREDITS" and its countdown identical at 2 050-2 400 (4 pixels at 2 050 / 2 080, 0 from 2 100) |
 | boot, Space Ranger | the whole machine in Verilator (`sim/run_sys.sh`) against MAME 0.289 (`tools/mame_dump.sh`), first start with blank NVRAM | Kickstart 1.3, the OnePlay BIOS's resident "strap" and its warm reboot, CoolCapture into the BIOS at the same frames as MAME (245 / 246); the program counter per frame follows MAME's; chip RAM at frames 200-300 within 9-46 bytes of MAME's (interrupt-time values); frames 275 and 300 (the OnePlay screen) identical to MAME's snapshots, 0 of 174 484 pixels differ |
 
 ## Known differences / open points
+
+* MAME finds a genlock and the core does not. Kickstart's test (`$FCB008`) sets BPLCON0's external sync and checks
+  whether the beam counter stops. It does on a real A500 and in Minimig, but not in MAME, so MAME's copper lists carry
+  `$0102` in BPLCON0 (genlock audio and external sync). The core's lists carry `$0200`, as a real Arcadia's would. The
+  picture is the same; chip RAM differs in those words.
 
 * The coin counters follow MAME's model (two 2-bit counters taken down by port B writes); the real coin hardware is not
   documented.

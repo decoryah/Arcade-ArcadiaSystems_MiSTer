@@ -73,8 +73,10 @@ localparam CONF_STR = {
 
 ////////////////////   CLOCKS   ///////////////////
 
-// Minimig's PLL: outclk_0 4x the machine clock (SDRAM, video), outclk_1 the machine clock, reconfigured to the NTSC
-// 28.636 MHz once the machine reports NTSC (always, here)
+// Minimig's PLL (rtl/pll): outclk_0 4x the machine clock (SDRAM, CPU phases, video), outclk_1 the machine clock. It is
+// built for PAL (28.375160 MHz) and reconfigured to NTSC (28.636 MHz, MAME's CLK_28M_NTSC) once the machine reports NTSC,
+// which here is right after power-on, as Minimig does (only the fractional multiplier changes). The timing constraints
+// add the 0.9 % (ArcadiaSystems.sdc).
 wire clk_114;
 wire clk_sys;
 wire locked;
@@ -179,7 +181,7 @@ amiga_clk amiga_clk
 	.c3       ( c3         ), // clk28m clock domain signal synchronous with clk signal delayed by 90 degrees
 	.cck      ( cck        ), // colour clock output (3.54 MHz)
 	.eclk     ( eclk       ), // 0.709379 MHz clock enable output (clk domain pulse)
-	.reset_n  ( ~reset     )
+	.reset_n  ( locked     )  // not the machine reset: the ROM loader's host bus runs on these enables
 );
 
 ///////////////////////////////////////////////////

@@ -38,8 +38,8 @@ of `amiga.cpp` / `amiga_m.cpp`), then how the core maps it onto Minimig. MAME 0.
 Unmapped reads return $FFFF (`unmap_value_high`).
 
 The BIOS at $F00000 is how the system takes over the boot: Kickstart 1.3 looks at $F00000 both for the $1111
-diagnostic-ROM magic and for resident tags ($4AFC; the TenPlay BIOS starts with one). Which one OnePlay uses is still to
-be checked against MAME.
+diagnostic-ROM magic and for resident tags ($4AFC). OnePlay and TenPlay both start with a resident tag (OnePlay's
+scrambled first word unscrambles to $4AFC); see section 5 for what OnePlay does with it.
 
 `argh_map` (Aaargh, `ar_argh`) has no BIOS:
 
@@ -146,13 +146,22 @@ The core is Minimig-AGA (vendored in `modules/minimig`, see `modules/VENDOR.md`)
 Removed from the build: AGA, 68020/030, RTG, IDE/Gayle, A2065, Toccata, CDTV, Akiko/CD32, MT-32, UART, floppy drives,
 the shared folder.
 
-ROM image (MRA `index="0"`; the layout is fixed by the loader and every MRA follows it):
+ROM image (MRA `index="0"`; the layout is fixed by `rtl/arcadia_loader.v` and every MRA follows it):
 
-| offset | size | contents |
-|---|---|---|
-| $000000 | 512 KB | Kickstart 1.3 (256 KB, twice) |
-| $080000 | 512 KB | BIOS (`user2`, padded) |
-| $100000 | 1.5 MB | ROM board (`user3`, padded with the set's fill byte) |
+| offset | size | contents | written to |
+|---|---|---|---|
+| $000000 | 16 bytes | header: the ROM board's low-byte permutation (MAME's `generic_decode` order, bit 7 .. bit 0), flags (bit 0 Aaargh's map), zeros | the loader |
+| $000010 | 512 KB | Kickstart 1.3 (256 KB, twice) | $F80000 (SDRAM $780000) |
+| $080010 | 512 KB | BIOS (`user2`, the rest zero; Aaargh: all zero) | $F00000 (SDRAM $700000) |
+| $100010 | 1.5 MB | ROM board (`user3`, the rest the set's fill byte) | $800000 (SDRAM $200000) |
 
-The scrambled low bytes are fixed by the loader as they arrive, using the permutation for the set, which the MRA gives in
-a small configuration ROM (`index="1"`) along with the memory-map type (Arcadia or Aaargh).
+The loader writes the image word by word over Minimig's host bus with the 68000 halted, as Main_MiSTer writes a
+Kickstart to Minimig, and fixes the scrambled low bytes as they pass: the ROM board's first 128 KB with the header's
+permutation, the BIOS's first 128 KB with OnePlay's when the BIOS's first word is not `$4AFC`. It holds the 68000 in
+reset from power-on and during every download (the NVRAM file comes after the ROMs), and lets it go about 150 ms after
+the last one with a machine reset.
+
+How the OnePlay BIOS takes over (seen in MAME and in the simulation): its resident tag at `$F00000` ("strap", priority
+-59, init at `$9902BC`, so it runs from the `$980000` window) points ExecBase's CoolCapture at `$990342`. It puts
+`reset; jmp` at address 0 and jumps there. The RESET instruction brings back the Kickstart overlay, so the prefetched
+`jmp` takes its target from ROM: a warm reboot. On the second start Kickstart calls CoolCapture, and OnePlay runs.
