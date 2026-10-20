@@ -98,6 +98,7 @@ module agnus
 	input         ntsc,            // chip is NTSC
 	input         a1k,             // enable A1000 OCS features
 	input         ecs,             // enable ECS features
+	input         ecs_id,          // Arcadia: VPOSR reports the ECS (8372) Agnus without the ECS features, as MAME (AGNUS_HR_NTSC)
 	input         aga,             // enables AGA features
 	input         floppy_speed     // allocates refresh slots for disk DMA
 );
@@ -476,6 +477,7 @@ agnus_beamcounter  bc1
 	.ntsc(ntsc),
 	.aga(aga),
 	.ecs(ecs),
+	.ecs_id(ecs_id),
 	.a1k(a1k),
 	.reg_address_in(reg_address),
 	.data_in(data_in),

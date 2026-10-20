@@ -39,3 +39,7 @@ __pycache__/
 # the release zip (attach it to the GitHub release); the release notes are kept
 dist/*
 !dist/RELEASE_NOTES_*.md
+
+# fx68k microcode links made by sim/run_sys.sh
+sim/microrom.mem
+sim/nanorom.mem

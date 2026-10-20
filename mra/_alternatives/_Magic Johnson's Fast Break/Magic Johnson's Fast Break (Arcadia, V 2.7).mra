@@ -1,0 +1,65 @@
+<misterromdescription>
+    <name>Magic Johnson's Fast Break (Arcadia, V 2.7)</name>
+    <setname>ar_fasta</setname>
+    <mameversion>0289</mameversion>
+    <year>1988</year>
+    <manufacturer>Arcadia Systems</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rotation>horizontal</rotation>
+    <rbf>arcadiasystems</rbf>
+    <platform>Arcadia Systems</platform>
+    <!-- The image (rtl/arcadia_loader.v): a 16-byte header (the ROM board's low-byte permutation, MAME's generic_decode
+         order bit 7..0; flags, bit 0 Aaargh's map), Kickstart 1.3 (512 KB), the BIOS (512 KB, OnePlay 3.00 as MAME's
+         default), the ROM board (1.5 MB). The ROMs stay as dumped: the core unscrambles them.
+         Expects the MAME 0.289 merged romset or the split sets. Written by tools/make_mra.py. -->
+    <buttons names="Button 1,Button 2,Start,Coin,Service" default="A,B,Start,Select,R"/>
+    <rom index="0" zip="ar_fasta.zip|ar_fast.zip|ar_bios.zip" md5="9f6ea9b3e39819f455c35ea36b8e7b35">
+        <!-- header -->
+        <part>07 06 05 04 03 02 01 00 00 00 00 00 00 00 00 00</part>
+        <!-- kickstart: Kickstart 1.3, twice -->
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <!-- user2: the BIOS, OnePlay 3.00 -->
+        <interleave output="16">
+            <part name="scpa_01-hi_v3.0.u12" crc="2d8e1a06" map="01"/>
+            <part name="scpa_01-lo_v3.0.u16" crc="e4f38fab" map="10"/>
+        </interleave>
+        <part repeat="0x60000">00</part>
+        <!-- user3: the ROM board -->
+        <interleave output="16">
+            <part name="fast-v27_1-hi.u11" crc="58ce7e02" map="01"/>
+            <part name="fast-v27_1-lo.u15" crc="6bf75490" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_2-hi.u10" crc="3a3dd931" map="01"/>
+            <part name="fast-v27_2-lo.u14" crc="4838d7e5" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_3-hi.u9" crc="db94fa62" map="01"/>
+            <part name="fast-v27_3-lo.u13" crc="a400367d" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_4-hi.u20" crc="c0a021dd" map="01"/>
+            <part name="fast-v27_4-lo.u24" crc="870e60f1" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_5-hi.u19" crc="6daf4817" map="01"/>
+            <part name="fast-v27_5-lo.u23" crc="f489da29" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_6-hi.u18" crc="e36424a4" map="01"/>
+            <part name="fast-v27_6-lo.u22" crc="23441bac" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_7-hi.u17" crc="2ac2f165" map="01"/>
+            <part name="fast-v27_7-lo.u21" crc="41255827" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="fast-v27_8-hi.u28" crc="8e838770" map="01"/>
+            <part name="fast-v27_8-lo.u32" crc="2d55af35" map="10"/>
+        </interleave>
+        <part repeat="0x80000">FF</part>
+    </rom>
+    <nvram index="4" size="16384"/>
+</misterromdescription>

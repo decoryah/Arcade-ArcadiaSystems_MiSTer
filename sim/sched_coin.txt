@@ -1,0 +1,14 @@
+# A coin and player 1 start once the game's title is up (Space Ranger: about frame 1900 on a first boot), then button 1
+# and the joystick for a while. Format: <frame> <signal> <0|1> (sim/tb_arcadia.cpp, tools/lua/arcadia_dump.lua).
+2000 coin1 1
+2006 coin1 0
+2060 start1 1
+2066 start1 0
+2200 b1 1
+2206 b1 0
+2220 right 1
+2260 right 0
+2260 b1 1
+2266 b1 0
+2280 left 1
+2320 left 0

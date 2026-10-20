@@ -84,6 +84,13 @@ module gary
 
 	input         cdtv_mode,
 
+	// Arcadia (MAME arsystems.cpp): the ROM board, BIOS and NVRAM on the expansion bus
+	input         arc_argh,      // Aaargh's map (argh_map) instead of arcadia_map
+	input         arc_board_in,  // ROM board switched in ($9FFFFE written with 0)
+	output        sel_arc,       // ROM board or BIOS in the SDRAM
+	output        sel_arc_nvram, // NVRAM
+	output        sel_arc_board, // the board switch register at $9FFFFE
+
 	output        ram_rd, //bus read
 	output        ram_hwr, //bus high write
 	output        ram_lwr, //bus low write
@@ -114,13 +121,14 @@ module gary
 wire	[2:0] t_sel_slow;
 wire	sel_xram;
 wire	sel_bank_1; 				// $200000-$3FFFFF
- 
+wire	sel_unmapped;				// Arcadia: reads of nothing ($FFFF)
+
 
 //--------------------------------------------------------------------------------------
 
 assign ram_data_in    = dbr ? custom_data_out : cpu_data_out;
 assign custom_data_in = dbr ? ram_data_out : cpu_rd ? 16'hFFFF : cpu_data_out;
-assign cpu_data_in    = dbr ? 16'h0000 : custom_data_out | ram_data_out | {16{sel_bank_1}};
+assign cpu_data_in    = dbr ? 16'h0000 : custom_data_out | ram_data_out | {16{sel_bank_1 | sel_unmapped}};
 
 //read write control signals
 assign ram_rd  = dbr ? ~dbwe : cpu_rd;
@@ -136,10 +144,46 @@ wire kick_mirror_a8 = cpu_address_in[23:19] == 5'b1010_1;
 wire kick_mirror_b0 = cpu_address_in[23:19] == 5'b1011_0;
 wire kick_mirror_f0 = cdtv_mode && cpu_address_in[23:19] == 5'b1111_0;
 wire cdtv_card_win  = cdtv_mode && cpu_address_in[23:19] == 5'b1110_0 && !cpu_hlt;
-wire [4:0] cpu_addr_hi_remap = kick_mirror_a8 ? 5'b1111_1 :
+// Arcadia map, in 512 KB blocks of the CPU address (MAME's arcadia_map / argh_map):
+//   $800000-$97FFFF ROM board (1.5 MB), out after a non-zero write to $9FFFFE; always in for Aaargh
+//   $980000-$9FBFFF BIOS (its first $7C000 bytes); Aaargh: nothing
+//   $9FC000-$9FFFFD NVRAM, $9FFFFE the board switch; Aaargh: NVRAM at $9FF000-$9FFFFF
+//   $E00000-$E7FFFF Kickstart mirror
+//   $F00000-$F7FFFF BIOS; Aaargh: the ROM board's first 512 KB
+// The SRAM bridge keeps address bits 22:1 for anything outside chip RAM and Kickstart (bank[4]), so the ROM board is moved to
+// $200000-$37FFFF of that space and the BIOS (written at $F00000) lives at $700000-$77FFFF.
+wire       arc_rom   = cpu_address_in[23:21] == 3'b100 && cpu_address_in[20:19] != 2'b11; // $800000-$97FFFF
+wire       arc_98    = cpu_address_in[23:19] == 5'b1001_1;                                  // $980000-$9FFFFF
+wire       arc_e0    = cpu_address_in[23:19] == 5'b1110_0;                                  // $E00000-$E7FFFF
+wire       arc_f0    = cpu_address_in[23:19] == 5'b1111_0;                                  // $F00000-$F7FFFF
+wire       arc_board = !arc_argh && cpu_address_in[23:1] == 23'h4FFFFF;                     // $9FFFFE
+wire       arc_nvram = arc_argh ? cpu_address_in[23:12] == 12'h9FF
+                                : cpu_address_in[23:14] == 10'b1001_1111_11 && !arc_board; // $9FC000-$9FFFFD
+wire       arc_bios  = arc_98 && !arc_argh && !arc_nvram && !arc_board;
+wire       arc_f0rom = arc_f0 && arc_argh && !cpu_hlt;                                      // Aaargh reads its ROM board at $F00000
+wire [4:0] cpu_addr_hi_remap = arc_rom   ? {3'b001, cpu_address_in[20:19]} :
+                               arc_f0rom ? 5'b0010_0 :
+                               arc_bios  ? 5'b1111_0 :
+                               arc_e0    ? 5'b1111_1 :
+                               kick_mirror_a8 ? 5'b1111_1 :
                                kick_mirror_b0 ? 5'b1110_0 :
                                kick_mirror_f0 ? 5'b1110_0 :
                                cpu_address_in[23:19];
+
+// the loader writes these areas with the CPU halted; the CPU only reads them
+assign sel_arc       = !dbr && ((arc_rom && (cpu_hlt || (cpu_rd && (arc_board_in || arc_argh)))) ||
+                                (arc_bios && cpu_rd && !cpu_hlt) ||
+                                (arc_f0 && (cpu_rd || cpu_hlt)));
+assign sel_arc_nvram = !dbr && !cpu_hlt && arc_nvram;
+assign sel_arc_board = !dbr && !cpu_hlt && arc_board;
+
+// reads of nothing return $FFFF, as in MAME (unmap_value_high): $400000-$7FFFFF, the ROM board when it is out, the holes at
+// $980000-$9FFFFF, $D80000-$DDFFFF and the autoconfig space ($200000-$3FFFFF already reads $FFFF through sel_bank_1)
+assign sel_unmapped = cpu_rd && !cpu_hlt && (cpu_address_in[23:22] == 2'b01 ||
+                                          (arc_rom && !arc_board_in && !arc_argh) ||
+                                          (arc_98 && !arc_bios && !arc_nvram) ||
+                                          (cpu_address_in[23:16] >= 8'hD8 && cpu_address_in[23:16] <= 8'hDD) ||
+                                          cpu_address_in[23:19] == 5'b1110_1);
 assign ram_address_out  = dbr ? {3'b000, dma_address_in[20:1]} : {cpu_addr_hi_remap, cpu_address_in[18:1]};
    
    
@@ -176,8 +220,8 @@ begin
 		sel_slow[0] = t_sel_slow[0];
 		sel_slow[1] = t_sel_slow[1];
 		sel_slow[2] = t_sel_slow[2];
-		sel_kick    = (cpu_address_in[23:19]==5'b1111_1 && (cpu_rd || cpu_hlt || (!rom_readonly && cpu_address_in[18])))  || (cpu_rd && ovl && cpu_address_in[23:19]==5'b0000_0) || (cpu_rd && kick_mirror_a8);
-		sel_kick1mb = (cpu_address_in[23:19]==5'b1110_0 && ((cpu_rd && !cdtv_card_win) || cpu_hlt)) || (cpu_rd && kick_mirror_b0) || (cpu_rd && kick_mirror_f0);
+		sel_kick    = (cpu_address_in[23:19]==5'b1111_1 && (cpu_rd || cpu_hlt || (!rom_readonly && cpu_address_in[18])))  || (cpu_rd && ovl && cpu_address_in[23:19]==5'b0000_0) || (cpu_rd && kick_mirror_a8) || (cpu_rd && arc_e0);
+		sel_kick1mb = (cpu_rd && kick_mirror_b0) || (cpu_rd && kick_mirror_f0); // Arcadia: $E00000 is the Kickstart mirror (sel_kick)
 		sel_kick256kmirror = cpu_address_in[23:19]==5'b1111_1 &&  cpu_rd && rom_readonly && !cpu_hlt && bootrom;
 	end
 end

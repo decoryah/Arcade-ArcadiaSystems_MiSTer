@@ -1,0 +1,57 @@
+<misterromdescription>
+    <name>Ninja Mission (Arcadia, set 1, V 2.5)</name>
+    <setname>ar_ninj</setname>
+    <mameversion>0289</mameversion>
+    <year>1987</year>
+    <manufacturer>Arcadia Systems</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rotation>horizontal</rotation>
+    <rbf>arcadiasystems</rbf>
+    <platform>Arcadia Systems</platform>
+    <!-- The image (rtl/arcadia_loader.v): a 16-byte header (the ROM board's low-byte permutation, MAME's generic_decode
+         order bit 7..0; flags, bit 0 Aaargh's map), Kickstart 1.3 (512 KB), the BIOS (512 KB, OnePlay 3.00 as MAME's
+         default), the ROM board (1.5 MB). The ROMs stay as dumped: the core unscrambles them.
+         Expects the MAME 0.289 merged romset or the split sets. Written by tools/make_mra.py. -->
+    <buttons names="Button 1,Button 2,Start,Coin,Service" default="A,B,Start,Select,R"/>
+    <rom index="0" zip="ar_ninj.zip|ar_bios.zip" md5="2fe57d9856ef71ba911c00d7133b0baf">
+        <!-- header -->
+        <part>01 06 05 07 04 02 00 03 00 00 00 00 00 00 00 00</part>
+        <!-- kickstart: Kickstart 1.3, twice -->
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <!-- user2: the BIOS, OnePlay 3.00 -->
+        <interleave output="16">
+            <part name="scpa_01-hi_v3.0.u12" crc="2d8e1a06" map="01"/>
+            <part name="scpa_01-lo_v3.0.u16" crc="e4f38fab" map="10"/>
+        </interleave>
+        <part repeat="0x60000">00</part>
+        <!-- user3: the ROM board -->
+        <interleave output="16">
+            <part name="ninj_1h.bin" crc="53b07b4d" map="01"/>
+            <part name="ninj_1l.bin" crc="3337a6c1" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="ninj_2h.bin" crc="e28a5fa8" map="01"/>
+            <part name="ninj_2l.bin" crc="4f52c008" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="ninj_3h.bin" crc="c6e4dd36" map="01"/>
+            <part name="ninj_3l.bin" crc="1dca7ea5" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="ninj_4h.bin" crc="dc1a21d4" map="01"/>
+            <part name="ninj_4l.bin" crc="64660b15" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="ninj_5h.bin" crc="49cda31b" map="01"/>
+            <part name="ninj_5l.bin" crc="1c5ef815" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="ninj_6h.bin" crc="b647f31e" map="01"/>
+            <part name="ninj_6l.bin" crc="9e5407e3" map="10"/>
+        </interleave>
+        <part repeat="0xC0000">00</part>
+    </rom>
+    <nvram index="4" size="16384"/>
+</misterromdescription>

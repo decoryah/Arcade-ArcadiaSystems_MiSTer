@@ -1,0 +1,65 @@
+<misterromdescription>
+    <name>Leader Board Golf (Arcadia, set 2, V 2.4)</name>
+    <setname>ar_ldrba</setname>
+    <mameversion>0289</mameversion>
+    <year>1988</year>
+    <manufacturer>Arcadia Systems</manufacturer>
+    <players>2</players>
+    <joystick>4</joystick>
+    <rotation>horizontal</rotation>
+    <rbf>arcadiasystems</rbf>
+    <platform>Arcadia Systems</platform>
+    <!-- The image (rtl/arcadia_loader.v): a 16-byte header (the ROM board's low-byte permutation, MAME's generic_decode
+         order bit 7..0; flags, bit 0 Aaargh's map), Kickstart 1.3 (512 KB), the BIOS (512 KB, OnePlay 3.00 as MAME's
+         default), the ROM board (1.5 MB). The ROMs stay as dumped: the core unscrambles them.
+         Expects the MAME 0.289 merged romset or the split sets. Written by tools/make_mra.py. -->
+    <buttons names="Button 1,Button 2,Start,Coin,Service" default="A,B,Start,Select,R"/>
+    <rom index="0" zip="ar_ldrba.zip|ar_ldrb.zip|ar_bios.zip" md5="8b67179a67aa6339167d95eb31d0077d">
+        <!-- header -->
+        <part>07 06 05 04 03 02 01 00 00 00 00 00 00 00 00 00</part>
+        <!-- kickstart: Kickstart 1.3, twice -->
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <part name="315093-01.u2" crc="a6ce1636"/>
+        <!-- user2: the BIOS, OnePlay 3.00 -->
+        <interleave output="16">
+            <part name="scpa_01-hi_v3.0.u12" crc="2d8e1a06" map="01"/>
+            <part name="scpa_01-lo_v3.0.u16" crc="e4f38fab" map="10"/>
+        </interleave>
+        <part repeat="0x60000">00</part>
+        <!-- user3: the ROM board -->
+        <interleave output="16">
+            <part name="leader_board_01-hi_v2.4.u11" crc="fe1287e9" map="01"/>
+            <part name="leader_board_01-lo_v2.4.u15" crc="7c7bb9ee" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_02-hi_v2.4.u10" crc="64e5fbae" map="01"/>
+            <part name="leader_board_02-lo_v2.4.u14" crc="bb115e1c" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_03-hi_v2.4.u9" crc="1d290e28" map="01"/>
+            <part name="leader_board_03-lo_v2.4.u13" crc="b1352a77" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_04-hi_v2.4.u20" crc="b621c688" map="01"/>
+            <part name="leader_board_04-lo_v2.4.u24" crc="13f9c4b0" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_05-hi_v2.4.u19" crc="71273172" map="01"/>
+            <part name="leader_board_05-lo_v2.4.u23" crc="d9028183" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_06-hi_v2.4.u18" crc="a6ce61a4" map="01"/>
+            <part name="leader_board_06-lo_v2.4.u22" crc="13c71422" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_07-hi_v2.4.u17" crc="61807fa9" map="01"/>
+            <part name="leader_board_07-lo_v2.4.u21" crc="c62dae9f" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="leader_board_08-hi_v2.4.u28" crc="b5911807" map="01"/>
+            <part name="leader_board_08-lo_v2.4.u32" crc="1f1ea828" map="10"/>
+        </interleave>
+        <part repeat="0x80000">FF</part>
+    </rom>
+    <nvram index="4" size="16384"/>
+</misterromdescription>

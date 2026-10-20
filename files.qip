@@ -1,0 +1,32 @@
+# Minimig-AGA (modules/minimig, see modules/VENDOR.md): the A500 parts only
+set_global_assignment -name QIP_FILE modules/minimig/fx68k/fx68k.qip
+set_global_assignment -name QIP_FILE modules/minimig/agnus.qip
+set_global_assignment -name QIP_FILE modules/minimig/cia.qip
+set_global_assignment -name QIP_FILE modules/minimig/paula.qip
+set_global_assignment -name QIP_FILE modules/minimig/denise.qip
+# the PLL is in rtl/ (sys/pll_q17.qip includes rtl/pll.qip); it is Minimig's, see modules/VENDOR.md
+set_global_assignment -name VERILOG_FILE modules/minimig/gary.v
+set_global_assignment -name VERILOG_FILE modules/minimig/userio.v
+set_global_assignment -name VERILOG_FILE modules/minimig/amiga_clk.v
+set_global_assignment -name VERILOG_FILE modules/minimig/minimig_syscontrol.v
+set_global_assignment -name VERILOG_FILE modules/minimig/minimig_sram_bridge.v
+set_global_assignment -name VERILOG_FILE modules/minimig/minimig_m68k_bridge.v
+set_global_assignment -name VERILOG_FILE modules/minimig/minimig_bankmapper.v
+set_global_assignment -name VERILOG_FILE modules/minimig/sdram_ctrl.v
+set_global_assignment -name VERILOG_FILE modules/minimig/cpu_cache_new.v
+# Paula's floppy controller builds the MiSTer floppy interface (no drives are attached; upstream's misterfloppy.qip also lists
+# a MiSTerFloppyIBM.v that is not in the tree)
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppyi2c.v
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppyPLL.v
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppyRAWIO.v
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppySHUGART.v
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppyFifo.v
+set_global_assignment -name VERILOG_FILE modules/minimig/MiSTerFloppyVirtualFluxDrive.v
+set_global_assignment -name VHDL_FILE modules/minimig/bram.vhd
+
+# the Arcadia
+set_global_assignment -name VERILOG_FILE rtl/arcadia_board.v
+set_global_assignment -name VERILOG_FILE rtl/arcadia_amiga.v
+set_global_assignment -name VERILOG_FILE rtl/arcadia_loader.v
+set_global_assignment -name SYSTEMVERILOG_FILE ArcadiaSystems.sv
+set_global_assignment -name SDC_FILE ArcadiaSystems.sdc

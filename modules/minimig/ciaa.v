@@ -121,6 +121,7 @@ module ciaa
 
 	// Port B - Parallel port data (Centronics printer interface)
 	input  [7:0] portb_in,      // Port B inputs (not used in Amiga)
+	output [7:0] portb_drive,   // Arcadia: port B as MAME's 8520 drives it (see Port B below)
 
 	// Keyboard interface signals
 	input        kms_level,     // Keyboard/mouse serial data level
@@ -322,11 +323,37 @@ always @(posedge clk)
       ddrportb[7:0] <= (data_in[7:0]);
   end
 
+// Arcadia: the data register and the read / drive rules of MAME's mos6526 (the Arcadia's coin counters decrement on port B
+// writes). A read gives (pins & ~DDRB) | (PRB & DDRB), or pins & PRB when every bit is an output, and is remembered (MAME's
+// m_pb_in); the port drives PRB | (last read & ~DDRB) (MAME's update_pb, without the timer outputs on PB6 / PB7).
+reg [7:0] regportb;         // Port B data register
+reg [7:0] pb_lastrd;        // Port B value of the last read
+
+always @(posedge clk)
+  if (clk7_en) begin
+    if (reset)
+      regportb[7:0] <= 8'd0;
+    else if (wr && prb)
+      regportb[7:0] <= data_in[7:0];
+  end
+
+wire [7:0] pb_read = (&ddrportb) ? (portb_in & regportb) : ((portb_in & ~ddrportb) | (regportb & ddrportb));
+
+always @(posedge clk)
+  if (clk7_en) begin
+    if (reset)
+      pb_lastrd[7:0] <= 8'd0;
+    else if (!wr && prb)
+      pb_lastrd[7:0] <= pb_read;
+  end
+
+assign portb_drive = regportb | (pb_lastrd & ~ddrportb);
+
 // Port B read multiplexer
 always @(*)
 begin
   if (!wr && prb)
-    pb_out[7:0] = portb_in[7:0];    // Read port pins
+    pb_out[7:0] = pb_read;          // Read port pins
   else if (!wr && ddrb)
     pb_out[7:0] = (ddrportb[7:0]);  // Read direction register
   else
