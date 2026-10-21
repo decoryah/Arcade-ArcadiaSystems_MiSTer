@@ -4,22 +4,28 @@ A MiSTer core for the Arcadia Multi Select arcade system (Arcadia Systems / Mast
 Amiga 500 board with a ROM cage on the expansion port, so the core is built on
 [Minimig-AGA_MiSTer](https://github.com/MiSTer-devel/Minimig-AGA_MiSTer), fixed to the A500 / OCS / NTSC configuration,
 with the Arcadia ROM board, BIOS, NVRAM, coin and start inputs added. It is written from MAME 0.289's driver
-(`src/mame/amiga/arsystems.cpp`). No ROMs are in this repository.
+(`src/mame/amiga/arsystems.cpp`).
 
-**Status.** `releases/arcadiasystems_20261021.rbf`. The repository owner has tested it on a MiSTer: all games work. In
-simulation it runs like MAME 0.289 through Kickstart 1.3, the OnePlay BIOS, a game's load, title, coin and credit screen and
-play (see "What is verified"). Fast loading, CRT Adjust, the five Scale modes and the games' own button names came after that
-test; they are verified in simulation on the whole MiSTer top level.
+No ROMs or other copyrighted data are in this repository; you supply your own MAME 0.289 romsets.
+
+**Status.** First release (20261021). Its first build was **tested on a real MiSTer by the repository owner: all games
+work**. Fast loading, CRT Adjust, the five Scale modes and the games' own button names came after that test and are
+verified in simulation on the whole MiSTer top level. In simulation the machine runs like MAME 0.289 through Kickstart 1.3,
+the OnePlay BIOS, a game's load, title, coin, credit screen and play. See "What is verified" for exactly what has been
+checked and how, and "Known differences / open points" for what has not.
 
 ## Install
 
-Copy `releases/arcadiasystems_<date>.rbf` to `_Arcade/cores/` and the `.mra` files to `_Arcade/` (the `_alternatives` folder
-too, if you want the other versions). The MAME 0.289 zips go in `games/mame/`: the game's zip and `ar_bios.zip`, which also
-holds the Kickstart 1.3 ROM, so no separate Kickstart file is needed. Merged or split sets both work.
-
-The MRAs ask for fast loading (`address=` on the ROM): a Main_MiSTer that supports it puts the assembled 2.5 MB image in the DDR3
-in one go and the core reads it from there; an older one sends it the usual way. Either way the core writes the image straight
-into its SDRAM, a word in each 7 MHz slot.
+1. Unzip the release's `ArcadiaSystems_MiSTer_<date>.zip` over the root of the SD card (its `_Arcade/` holds the MRAs,
+   `_Arcade/_alternatives/` the other versions and `_Arcade/cores/` the RBF), or copy the RBF from `releases/` to
+   `/media/fat/_Arcade/cores/` and the `.mra` files from `mra/` (with its `_alternatives` folder) to `/media/fat/_Arcade/`.
+   Keep the RBF's `arcadiasystems_` name and date: MiSTer finds the core by the MRA's `<rbf>` name plus the date. The RBF
+   and the MRAs belong together (the MRAs name the buttons the RBF maps and ask for its fast load).
+2. Put your MAME 0.289 zips in `/media/fat/games/mame/`: the game's zip and `ar_bios.zip`, which also holds the Kickstart
+   1.3 ROM, so no separate Kickstart file is needed. Merged or split sets both work. No ROMs are distributed.
+3. Start a game from the Arcade menu. The ROM image is 2.5 MB; with a recent Main_MiSTer (one that knows the MRA's
+   `address=` attribute) it is copied to the DDR3 in one go and the core reads it from there, an older one streams it
+   through the HPS port. Either way the core writes it straight into its SDRAM, a word in each 7 MHz slot.
 
 | MRA | MAME set | Button 1 | Button 2 |
 |---|---|---|---|
@@ -75,6 +81,7 @@ Service mode: hold service when the BIOS has printed "INITIALIZATION OK", or pre
 | timing | Quartus 17.0, seed 1 (`releases/*.sta.summary`); the PLL is built for PAL and runs at NTSC, so the setup checks carry the 0.92 % as extra uncertainty | met on every clock: setup +1.146 ns at 114.5 MHz, +1.500 ns at 28.6 MHz, +5.541 ns at the 57.3 MHz video clock, +0.112 ns HDMI; holds positive. 35 % of the ALMs, 28 % of the RAM blocks |
 | MRAs | every MRA assembled from the MAME zips (`tools/make_mra.py <romdir>`) and compared with `tools/arcadia_rom.py` | identical, 22 sets |
 | the MiSTer top level | `ArcadiaSystems.sv` whole in Verilator (`sim/emu`): hps_io, the PLL and the SDRAM controller stubbed, the framework's `video_mixer` (scandoubler, HQ2x) and `video_freak` real; the image streamed through the ioctl port, or fast-loaded through a DDR3 model | both loads leave the memory identical to the layout, 1 310 720 words; a fast load has the image in memory 0.39 s after it starts (machine time). 26 video modes, each from the OnePlay screen: Scandoubler Fx (HQ2x, CRT 25 / 50 / 75 %), `forced_scandoubler` (also with HQ2x and CRT 50 %), CRT Adjust at each setting's limits and combined (and under the scandoubler, where it stays off), the five Scale modes (also with Full Screen, a 1280 x 720 scaler, HQ2x and CRT Adjust): all pass. A vertical sync every frame at 59.958 Hz (after a switch to the scandoubler two frames differ by up to 4 clocks of 114.5 MHz, then none in 36), 263 lines with 241 picture rows, 526 / 482 through the scandoubler, every row alike, the size asked of the scaler as `video_freak`'s rule gives it; the pictures dot for dot the 15 kHz run's (HQ2x 98.8 %, its interpolation). CRT Adjust at 0 gives the plain raster to the clock; H-Size +6 / -16 scale the rows by 70/64 and 48/64, H-Position +32 / -48 move them 512 / 768 clocks (cut at the line's end or the hsync pulse), V-Shift moves them by whole lines |
+| On a real MiSTer | the repository owner's MiSTer, with the MRAs of `mra/` | the first 20261021 build (`releases/arcadiasystems_20261021.rbf` at commit `bd0529a`): all games work. The rebuild with fast loading, CRT Adjust, the Scale modes and the button names: not yet |
 | ROM loader | the image downloaded through `rtl/arcadia_loader.v` in the simulation, the memory compared word for word with an independent C++ computation of the layout and unscrambling (`sim/run_sys.sh ... -checkload`) | identical, 1 310 720 words each for `ar_sprg`, `ar_xeon`, `ar_argh`, `ar_fasta` (not scrambled), `ar_ninj2` (zero fill) |
 | Aaargh (own memory map, no BIOS) | as below, 600 frames | the title screen identical to MAME's from frame 300 (sim 300 = MAME 297: the game starts 3 frames later), sim 450 = MAME 447 identical; from 500 the logo's colour cycle and the little dragon's animation are a step apart (phase) |
 | Space Ranger to the title, a coin | 2 400 frames from power-on (blank NVRAM) with a coin at frame 2 000 (`sim/sched_coin.txt`), every 100th frame and the ones after the coin against MAME's | frames 300-1 800 (OnePlay's NVRAM set-up, "1 Games Present", the game loading) identical; the title (1 900-2 010) identical but for the blinking "Insert coin to play" and a small animation (phase); after the coin, the credit screen with "1 CREDITS" and its countdown identical at 2 050-2 400 (4 pixels at 2 050 / 2 080, 0 from 2 100) |
@@ -113,7 +120,15 @@ Service mode: hold service when the BIOS has printed "INITIALIZATION OK", or pre
 
 ## Building
 
-Quartus Prime 17.0 (Lite is enough): open `ArcadiaSystems.qpf` and compile, or `quartus_sh --flow compile ArcadiaSystems`.
+Quartus Prime Lite 17.0.2 (the version MiSTer's framework is built with): open `ArcadiaSystems.qpf` and compile, or
+
+```
+quartus_sh --flow compile ArcadiaSystems
+```
+
+`python3 tools/make_mra.py <romdir>` regenerates the MRAs (and checks each against `tools/arcadia_rom.py`), and
+`python3 tools/package.py` writes the release zip from `releases/` and `mra/` into `dist/` (not in the repository: it goes to
+the GitHub release).
 
 The simulation runs in WSL with Verilator 5:
 
