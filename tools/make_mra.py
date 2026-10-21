@@ -20,7 +20,33 @@ import arcadia_rom  # noqa: E402
 ROOT = os.path.dirname(HERE)
 MRA_DIR = os.path.join(ROOT, 'mra')
 
-BUTTONS = '<buttons names="Button 1,Button 2,Start,Coin,Service" default="A,B,Start,Select,R"/>'
+# What the two buttons do in each game (a clone plays as its parent), as the games' own control screens and play in MAME 0.289
+# show them; "-" for a button the game does not use. The core's inputs are Button 1, Button 2, Start, Coin (ArcadiaSystems.sv's J1
+# line): Main_MiSTer shows these names in place of the core's.
+BUTTON_NAMES = {
+    'ar_airh':  ('Speed Up', 'Speed Up'),           # "Fire increases player speed"; the game takes either button
+    'ar_argh':  ('Fire', 'Punch'),                  # the how-to-play screen: fire button flames, punch button punches
+    'ar_blast': ('Fire', 'Accelerate'),             # "FIRE 1 FIRE ENERGY BALL", "FIRE 2 ACCELERATE"
+    'ar_bowl':  ('Throw', 'Throw'),                 # the game takes either button
+    'ar_dart':  ('Throw', '-'),                     # "press the RED fire button to throw"; button 2 is never read
+    'ar_dlta':  ('Fire', 'Special Weapon'),         # button 2 fires the special weapon (rockets), with its own counter
+    'ar_fast':  ('Shoot / Jump', 'Pass / Switch'),  # the control screen: offence shoot / pass, defence jump / switch player
+    'ar_ldrb':  ('Select Club', 'Top View'),        # "SELECT A CLUB ... FIRE BUTTON 1", "TOP VIEW ... FIRE BUTTON 2"
+    'ar_ninj':  ('Punch / Kick', 'Sword'),          # "joystick + FIRE 1" punches and kicks, "FIRE 2" the sword
+    'ar_pm':    ('Select', 'Cancel'),
+    'ar_rdwr':  ('Fire', '-'),                      # button 2 changes nothing in play
+    'ar_sdwr':  ('Fire', '-'),                      # "Use fire button 1 to shoot ground and air targets"
+    'ar_socc':  ('Kick', 'Switch Player'),          # the control screen: kick / slide / header, change player
+    'ar_spot':  ('Select', '-'),
+    'ar_sprg':  ('Fire', 'Net'),                    # "FIRE BUTTON 1 to shoot slavers ... FIRE BUTTON 2 to net critters"
+    'ar_xeon':  ('Fire', 'Transform'),              # jet <-> tank
+}
+FAST_LOAD_ADDRESS = '0x32000000'   # rtl/arcadia_fastload.v: where Main_MiSTer puts the image with address= (the attribute other cores use)
+
+
+def buttons(s):
+    b1, b2 = BUTTON_NAMES[s['name'] if s['parent'] == 'ar_bios' else s['parent']]
+    return '<buttons names="%s,%s,Start,Coin" default="A,B,Start,Select"/>' % (b1, b2)
 
 
 def short_title(title):
@@ -59,9 +85,10 @@ def mra_text(s, md5='None'):
     L.append('    <!-- The image (rtl/arcadia_loader.v): a 16-byte header (the ROM board\'s low-byte permutation, MAME\'s generic_decode')
     L.append('         order bit 7..0; flags, bit 0 Aaargh\'s map), Kickstart 1.3 (512 KB), the BIOS (512 KB, OnePlay 3.00 as MAME\'s')
     L.append('         default), the ROM board (1.5 MB). The ROMs stay as dumped: the core unscrambles them.')
-    L.append('         Expects the MAME 0.289 merged romset or the split sets. Written by tools/make_mra.py. -->')
-    L.append('    ' + BUTTONS)
-    L.append('    <rom index="0" zip="%s" md5="%s">' % ('|'.join(zips), md5))
+    L.append('         Expects the MAME 0.289 merged romset or the split sets. address=: fast loading, the image through the DDR3 (a')
+    L.append('         Main_MiSTer without it streams the image). Written by tools/make_mra.py. -->')
+    L.append('    ' + buttons(s))
+    L.append('    <rom index="0" zip="%s" md5="%s" address="%s">' % ('|'.join(zips), md5, FAST_LOAD_ADDRESS))
     hdr = list(s['perm']) + [1 if s['argh'] else 0] + [0] * 7
     L.append('        <!-- header -->')
     L.append('        <part>%s</part>' % ' '.join('%02X' % b for b in hdr))

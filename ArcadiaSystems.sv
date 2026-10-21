@@ -37,7 +37,9 @@ assign HDMI_FREEZE = 0;
 assign HDMI_BLACKOUT = 0;
 assign HDMI_BOB_DEINT = 0;
 
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_RD, DDRAM_DIN, DDRAM_BE, DDRAM_WE} = 0;
+// the DDR3: only fast loading reads it (rtl/arcadia_fastload.v)
+assign DDRAM_CLK = clk_sys;
+assign {DDRAM_DIN, DDRAM_BE, DDRAM_WE} = 0;
 
 assign LED_DISK  = 0;
 assign AUDIO_S   = 1;
@@ -54,8 +56,13 @@ localparam CONF_STR = {
 	"ArcadiaSystems;;",
 	"-;",
 	"O[2:1],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O[18:16],Scale,Normal,V-Integer,HV-Integer,Narrower HV-Integer,HV-Integer+;",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"O[8:6],Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"P1,CRT Adjust;",
+	"P1O[19],CRT Adjust,Off,On;",
+	"H0P1O[24:20],CRT H-Size,0,+1,+2,+3,+4,+5,+6,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H0P1O[31:25],CRT H-Position,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,+16,+17,+18,+19,+20,+21,+22,+23,+24,+25,+26,+27,+28,+29,+30,+31,+32,-48,-47,-46,-45,-44,-43,-42,-41,-40,-39,-38,-37,-36,-35,-34,-33,-32,-31,-30,-29,-28,-27,-26,-25,-24,-23,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
+	"H0P1O[36:32],CRT V-Shift,0,+1,+2,+3,+4,+5,+6,+7,+8,+9,+10,+11,+12,+13,+14,+15,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
 	"-;",
 	"O[10:9],Audio filter,A500 (power LED),Off,On;",
 	"O[12:11],Stereo mix,None,25%,50%,100%;",
@@ -66,8 +73,8 @@ localparam CONF_STR = {
 	"T[15],Save NVRAM;",
 	"-;",
 	"R[0],Reset;",
-	"J1,Button 1,Button 2,Start,Coin,Service;",
-	"jn,A,B,Start,Select,R;",
+	"J1,Button 1,Button 2,Start,Coin;",
+	"jn,A,B,Start,Select;",
 	"V,v",`BUILD_DATE
 };
 
@@ -183,7 +190,7 @@ amiga_clk amiga_clk
 	.c3       ( c3         ), // clk28m clock domain signal synchronous with clk signal delayed by 90 degrees
 	.cck      ( cck        ), // colour clock output (3.54 MHz)
 	.eclk     ( eclk       ), // 0.709379 MHz clock enable output (clk domain pulse)
-	.reset_n  ( locked     )  // not the machine reset: the ROM loader's host bus runs on these enables
+	.reset_n  ( locked     )  // not the machine reset: the ROM loader's writes run on these phases
 );
 
 ///////////////////////////////////////////////////
@@ -210,7 +217,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask(16'd0),
+	.status_menumask({15'd0, ~status[19]}),   // H0: the CRT Adjust settings, shown while it is on
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
@@ -219,7 +226,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
-	.ioctl_wait(ld_busy),
+	.ioctl_wait(ld_busy & ~fl_active),     // a fast load's replay does not hold up the NVRAM file
 	.ioctl_upload(ioctl_upload),
 	.ioctl_upload_req(nv_req),
 	.ioctl_upload_index(NV_INDEX),
@@ -250,7 +257,8 @@ always @(posedge clk_sys) begin
 	end
 end
 
-// joystick bits: 0 right, 1 left, 2 down, 3 up, 4 button 1, 5 button 2, 6 start, 7 coin, 8 service (the J1 line above).
+// joystick bits: 0 right, 1 left, 2 down, 3 up, 4 button 1, 5 button 2, 6 start, 7 coin (the J1 line above); service is on the
+// keyboard only (F2), so a pad cannot enter the BIOS's service mode by accident.
 // Player 1 is the Amiga's game port 0 and player 2 port 1, as in MAME (p1_joy -> JOY0DAT, button 1 -> /FIR0, button 2 -> DATLY).
 wire [15:0] _joy0 = ~{10'd0, joystick_0[5:0]};    // [fire2,fire,up,down,left,right], active low
 wire [15:0] _joy1 = ~{10'd0, joystick_1[5:0]};
@@ -258,34 +266,71 @@ wire start1  = joystick_0[6] | key_start1;
 wire start2  = joystick_1[6] | key_start2;
 wire coin1   = joystick_0[7] | key_coin1;
 wire coin2   = joystick_1[7] | key_coin2;
-wire service = joystick_0[8] | joystick_1[8] | key_service;
+wire service = key_service;
 
 ///////////////////////   ROM LOADER   ///////////////////////
 
 wire        rom_dl = ioctl_download && (ioctl_index[7:0] == 8'd0);
+
+// Fast loading (rtl/arcadia_fastload.v): a ROM download that starts with a non-zero address carries no data; the address is the
+// image's length, and the image is in the DDR3. The machine stays held until it has gone through the loader.
+reg         rom_dl_d = 1'b0;
+reg         fast_dl = 1'b0;
+reg  [24:0] fast_len = 25'd0;
+wire        fl_done, fl_active, fl_wr;
+wire [24:0] fl_addr;
+wire  [7:0] fl_data;
+always @(posedge clk_sys) begin
+	rom_dl_d <= rom_dl;
+	if (rom_dl && !rom_dl_d) begin
+		fast_dl  <= (ioctl_addr != 27'd0);
+		fast_len <= ioctl_addr[24:0];
+	end
+	else if (fl_done) fast_dl <= 1'b0;
+end
+
+arcadia_fastload fastload
+(
+	.clk(clk_sys),
+	.go(fast_dl && rom_dl_d && !rom_dl),
+	.len(fast_len),
+	.active(fl_active),
+	.done(fl_done),
+	.wr(fl_wr),
+	.addr(fl_addr),
+	.data(fl_data),
+	.busy(ld_busy),
+	.ddr_busy(DDRAM_BUSY),
+	.ddr_burstcnt(DDRAM_BURSTCNT),
+	.ddr_addr(DDRAM_ADDR),
+	.ddr_rd(DDRAM_RD),
+	.ddr_dout(DDRAM_DOUT),
+	.ddr_dout_ready(DDRAM_DOUT_READY)
+);
+
 wire        cpurst, cpuhlt, usrrst;
-wire        host_cs, host_ack;
-wire [23:1] host_adr;
-wire [15:0] host_wdat;
+wire        ld_own;             // the loader has the SDRAM controller's chip port for this slot
+wire [22:1] ld_adr;
+wire [15:0] ld_dat;
 wire        arc_argh;
 wire        loaded;
 
 arcadia_loader loader
 (
 	.clk(clk_sys),
-	.clk7_en(clk7_en),
-	.download(ioctl_download),
-	.rom_wr(rom_dl && ioctl_wr),
-	.rom_addr(ioctl_addr[24:0]),
-	.rom_data(ioctl_dout),
+	.c1(c1),
+	.c3(c3),
+	.download(ioctl_download | fast_dl),
+	.rom_wr(fl_active ? fl_wr : (rom_dl && ioctl_wr)),
+	.rom_addr(fl_active ? fl_addr : ioctl_addr[24:0]),
+	.rom_data(fl_active ? fl_data : ioctl_dout),
 	.busy(ld_busy),
 	.cpurst(cpurst),
 	.cpuhlt(cpuhlt),
 	.usrrst(usrrst),
-	.host_cs(host_cs),
-	.host_adr(host_adr),
-	.host_wdat(host_wdat),
-	.host_ack(host_ack),
+	.ram_own(ld_own),
+	.ram_adr(ld_adr),
+	.ram_dat(ld_dat),
 	.argh(arc_argh),
 	.loaded(loaded)
 );
@@ -430,12 +475,13 @@ sdram_ctrl ram1
 	.cpuRD        (                ),
 	.ramready     (                ),
 
-	.chipWR       (ram_data        ),
-	.chipAddr     ({1'b0, ram_address}),
-	.chipU        (_ram_bhe        ),
-	.chipL        (_ram_ble        ),
-	.chipRW       (_ram_we         ),
-	.chipDMA      (_ram_oe         ),
+	// the machine's chip bus, or the ROM loader's write in its slot (rtl/arcadia_loader.v)
+	.chipWR       (ld_own ? ld_dat : ram_data),
+	.chipAddr     (ld_own ? {2'b00, ld_adr} : {1'b0, ram_address}),
+	.chipU        (ld_own ? 1'b0 : _ram_bhe),
+	.chipL        (ld_own ? 1'b0 : _ram_ble),
+	.chipRW       (ld_own ? 1'b0 : _ram_we),
+	.chipDMA      (ld_own ? 1'b1 : _ram_oe),
 	.chipRD       (ramdata_in      ),
 	.chip48       (chip48          ),
 	.chip32       (1'b0            ),
@@ -497,11 +543,11 @@ arcadia_amiga minimig
 	.cpurst       (cpurst           ),
 	.cpuhlt       (cpuhlt           ),
 	.usrrst       (usrrst           ),
-	.host_cs      (host_cs          ),
-	.host_adr     (host_adr         ),
-	.host_we      (host_cs          ),
-	.host_wdat    (host_wdat        ),
-	.host_ack     (host_ack         ),
+	.host_cs      (1'b0             ),   // the loader writes the SDRAM directly
+	.host_adr     (23'd0            ),
+	.host_we      (1'b0             ),
+	.host_wdat    (16'd0            ),
+	.host_ack     (                 ),
 
 	//Arcadia
 	.arc_argh     (arc_argh         ),
@@ -556,136 +602,51 @@ assign LED_POWER = {1'b1, pwr_led | ~led_dim};
 assign LED_USER  = ~loaded;
 
 ///////////////////////   VIDEO   ///////////////////////
-// Minimig's video path, without its keyboard-driven screen adjustment
-
-wire [2:0] fx = status[5:3];
-wire       scandoubler = (fx || forced_scandoubler) & ~lace;
-wire [7:0] R,G,B;
-
-reg        hde;
-reg        fhbl, fvbl, shbl, svbl;
-wire       vde = ~(fvbl | svbl);
-wire       vblank = vbl | ~vs;
-wire       hbl = fhbl | shbl | ~hs;
-
-reg ce_out = 0;
-always @(posedge CLK_VIDEO) begin
-	reg [2:0] div;
-	reg [3:0] add;
-	reg [1:0] fs_res;
-	reg old_vs;
-
-	div <= div + add;
-	if(~hblank & ~vblank) fs_res <= fs_res | res;
-
-	old_vs <= vs;
-	if(old_vs & ~vs) begin
-		fs_res <= 0;
-		div <= 0;
-		add <= 1; // 7MHz (CLK_VIDEO / 8)
-		if(fs_res[0]) add <= 2; // 14MHz
-		if(fs_res[1] | ~scandoubler) add <= 4; // 28MHz
-	end
-
-	ce_out <= div[2] & !div[1:0];
-end
-
-video_mixer #(.LINE_LENGTH(2000), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
-(
-	.*,
-	.hq2x(fx==1),
-	.ce_pix(ce_out),
-	.freeze_sync(),
-
-	.R(r),
-	.G(g),
-	.B(b),
-	.HSync(~hs),
-	.VSync(~vs),
-	.HBlank(~hde),
-	.VBlank(~vde),
-
-	.VGA_R(R),
-	.VGA_G(G),
-	.VGA_B(B)
-);
+// Minimig's video path with CRT Adjust and the Scale modes (rtl/arcadia_video.sv)
 
 assign CLK_VIDEO = clk_vid;
-assign VGA_F1    = field1;
-assign VGA_R     = R;
-assign VGA_G     = G;
-assign VGA_B     = B;
 
-wire [1:0] ar = status[2:1];
-
-video_freak video_freak
+arcadia_video video
 (
-	.*,
-	.VGA_DE_IN(VGA_DE),
-	.VGA_DE(),
-	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
-	.ARY((!ar) ? 12'd3 : 12'd0),
-	.CROP_SIZE(0),
-	.CROP_OFF(0),
-	.SCALE(status[8:6])
+	.clk_sys(clk_sys),
+	.clk_vid(clk_vid),
+
+	.r(r),
+	.g(g),
+	.b(b),
+	.hs(hs),
+	.vs(vs),
+	.hblank(hblank),
+	.vbl(vbl),
+	.res(res),
+	.lace(lace),
+	.field1(field1),
+
+	.fx(status[5:3]),
+	.forced_scandoubler(forced_scandoubler),
+	.ar(status[2:1]),
+	.scale(status[18:16]),
+	.crt_en(status[19]),
+	.crt_hsize_osd(status[24:20]),
+	.crt_hpos_osd(status[31:25]),
+	.crt_vshift_osd(status[36:32]),
+
+	.gamma_bus(gamma_bus),
+	.HDMI_WIDTH(HDMI_WIDTH),
+	.HDMI_HEIGHT(HDMI_HEIGHT),
+
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_HS(VGA_HS),
+	.VGA_VS(VGA_VS),
+	.VGA_DE(VGA_DE),
+	.VGA_SL(VGA_SL),
+	.VGA_F1(VGA_F1),
+	.VIDEO_ARX(VIDEO_ARX),
+	.VIDEO_ARY(VIDEO_ARY)
 );
-
-wire [2:0] sl = fx ? fx - 1'd1 : 3'd0;
-assign VGA_SL = sl[1:0];
-
-reg  [11:0] hsta, hend, hmax, hcnt;
-always @(posedge clk_sys) begin
-	reg old_hs;
-	reg old_hblank;
-
-	old_hs <= hs;
-	old_hblank <= hblank;
-
-	hcnt <= hcnt + 1'd1;
-	if(~hs) hcnt <= 0;
-
-	if(old_hblank & ~hblank) hend <= hcnt;
-	if(~old_hblank & hblank) hsta <= hcnt;
-	if(old_hs & ~hs)         hmax <= hcnt;
-
-	if(hcnt == hend-2'd2) shbl <= 0;
-	if(hcnt == hsta-2'd2) shbl <= 1;
-
-	//force hblank
-	if(hcnt == 8)         fhbl <= 0;
-	if(hcnt == hmax-4'd8) fhbl <= 1;
-end
-
-reg [11:0] vend, vmax, vcnt, vs_end;
-always @(posedge clk_sys) begin
-	reg old_vs;
-	reg old_vblank, old_hs, old_hbl;
-
-	old_vs <= vs;
-	old_hs <= hs;
-	old_vblank <= vblank;
-
-	if(old_hs & ~hs) vcnt <= vcnt + 1'd1;
-	if(~old_vblank & vblank) vcnt <= 0;
-
-	if(~lace | ~field1) begin
-		if(old_vblank & ~vblank) vend <= vcnt;
-		if(~old_vs & vs)         vs_end <= vcnt;
-		if(~old_vblank & vblank) vmax <= vcnt;
-	end
-
-	old_hbl <= hbl;
-	if((old_hbl & ~hbl) | !vcnt) begin
-		if(vcnt == vend) svbl <= 0;
-		if(vcnt == 0)    svbl <= 1;
-
-		//force vblank
-		if(vcnt == vmax-1)    fvbl <= 1;
-		if(vcnt == vs_end+2)  fvbl <= 0;
-	end
-
-	hde <= ~hbl;
-end
 
 ///////////////////////   AUDIO   ///////////////////////
 // Minimig's A500 output: the fixed 4.4 kHz low pass, and the 3.3 kHz filter that follows the power LED (or forced off / on)

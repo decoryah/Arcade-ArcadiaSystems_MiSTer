@@ -2,15 +2,16 @@
 //
 //  Arcadia Systems for MiSTer: the ROM loader.
 //
-//  Takes the MRA's ROM image (ioctl index 0) and writes it into the machine over Minimig's host bus with the 68000 halted, the
-//  way Main_MiSTer uploads a Kickstart to Minimig, then lets the machine start.
+//  Takes the MRA's ROM image (ioctl index 0, streamed or replayed from the DDR3 by rtl/arcadia_fastload.v) and writes it into the
+//  machine's memory with the 68000 held, then lets the machine start. The words go straight into the SDRAM controller's chip
+//  port, one in a 7 MHz slot (see "the writes" below).
 //
 //  Image layout (every MRA, see tools/make_mra.py):
 //    $000000  16 bytes  header: bytes 0-7 the game's low-byte permutation (byte k = the scrambled bit that becomes bit 7-k),
 //                       byte 8 flags (bit 0: Aaargh's memory map), bytes 9-15 zero
-//    $000010  512 KB    Kickstart 1.3 (256 KB twice)            -> $F80000
-//    $080010  512 KB    BIOS (MAME region user2)                 -> $F00000 (Gary also shows it at $980000)
-//    $100010  1.5 MB    ROM board (MAME region user3)            -> $800000 (Gary keeps it at $200000 of the SDRAM)
+//    $000010  512 KB    Kickstart 1.3 (256 KB twice)            -> $F80000 (the SRAM bridge's $780000)
+//    $080010  512 KB    BIOS (MAME region user2)                 -> $F00000 (Gary also shows it at $980000; the SRAM bridge's $700000)
+//    $100010  1.5 MB    ROM board (MAME region user3)            -> $800000 (the SRAM bridge's $200000)
 //
 //  Scrambling (MAME 0.289 arsystems.cpp, generic_decode): only the low byte of each word in the first 128 KB of a region:
 //    - the ROM board, with the game's permutation from the header (the identity for unscrambled games);
@@ -29,7 +30,8 @@
 module arcadia_loader
 (
 	input             clk,          // the machine clock (28 MHz)
-	input             clk7_en,
+	input             c1,           // amiga_clk's 7 MHz phases
+	input             c3,
 
 	input             download,     // any ioctl download (ROM image or NVRAM file)
 	input             rom_wr,       // ioctl_wr of the ROM image
@@ -41,10 +43,11 @@ module arcadia_loader
 	output reg        cpurst = 1'b1,
 	output reg        cpuhlt = 1'b1,
 	output reg        usrrst = 1'b0,
-	output reg        host_cs = 1'b0,
-	output reg [23:1] host_adr = 23'd0,
-	output reg [15:0] host_wdat = 16'd0,
-	input             host_ack,
+
+	// the SDRAM controller's chip port, in place of the machine's (ArcadiaSystems.sv)
+	output reg        ram_own = 1'b0,
+	output reg [22:1] ram_adr = 22'd0,
+	output reg [15:0] ram_dat = 16'd0,
 
 	output reg        argh = 1'b0,
 	output reg        loaded = 1'b0
@@ -76,26 +79,32 @@ wire  [7:0] lo_plain = (!is_kick && !is_bios && goff < 22'h020000) ?
                        (is_bios && boff < 22'h020000 && bios_scr_now) ?
                            unscramble(rom_data, 3'd6, 3'd1, 3'd0, 3'd2, 3'd3, 3'd4, 3'd5, 3'd7) :
                            rom_data;
-wire [23:1] target   = is_kick ? {5'b1111_1, off[18:1]} :
-                       is_bios ? {5'b1111_0, boff[18:1]} :
-                                 {3'b100, goff[20:1]};
+wire [22:1] target   = is_kick ? {4'b1111, off[18:1]} :      // the SRAM bridge's addresses (gary.v, minimig_bankmapper.v)
+                       is_bios ? {4'b1110, boff[18:1]} :
+                                 {2'b01, goff[20:1]};
 
 //--------------------------------------------------------------------------------------
-// host bus writes (as userio.v does for Main_MiSTer's memory write command)
+// the writes: straight into the SDRAM controller's chip port, a word in a 7 MHz slot. The controller takes the chip bus in its
+// state 0, just after c1 rises (modules/minimig/sdram_ctrl.v); a word goes on the port at the end of c1's second high clock
+// (c1 & c3) and stays for the four clocks of the next slot, in place of the machine's own access, which the held machine does not
+// make (the 68000 is in reset and halted, and the chipset's DMA is off from power-on). A Main_MiSTer upload of a Kickstart to
+// Minimig goes over the 68000's bus instead, a word in a bus cycle (0.8 us); this is six times faster.
 
-reg mrx = 1'b0;                 // a word is waiting for the bus
-reg pending = 1'b0;             // ... or still in flight
-reg old_ack = 1'b0;
+reg        mrx = 1'b0;          // a word is waiting for its slot
+reg [22:1] wadr;
+reg [15:0] wdat;
+wire       pending = mrx | ram_own;
 
-assign busy = pending;
+assign busy = mrx;
 
 always @(posedge clk) begin
-	old_ack <= host_ack;
-	if (old_ack && !host_ack) pending <= 1'b0;
-
-	if (clk7_en) begin
-		host_cs <= mrx;
-		if (host_ack) mrx <= 1'b0;
+	if (c1 && c3) begin
+		ram_own <= mrx;
+		if (mrx) begin
+			ram_adr <= wadr;
+			ram_dat <= wdat;
+		end
+		mrx <= 1'b0;
 	end
 
 	if (rom_wr) begin
@@ -107,10 +116,9 @@ always @(posedge clk) begin
 			if (!off[0]) hi <= rom_data;
 			else begin
 				if (first_bios_word) bios_scr <= bios_scr_now;
-				host_adr  <= target;
-				host_wdat <= {hi, lo_plain};
-				mrx       <= 1'b1;
-				pending   <= 1'b1;
+				wadr <= target;
+				wdat <= {hi, lo_plain};
+				mrx  <= 1'b1;
 			end
 		end
 	end
@@ -119,8 +127,10 @@ end
 //--------------------------------------------------------------------------------------
 // boot control (Main_MiSTer's reset control command in Minimig: halt + reset while writing, then a machine reset)
 
-reg [22:0] hold = 23'd0;        // time since the last download ended
+reg [22:0] hold = 23'd0;        // time since the last download ended and its last word was written
 reg        dl_d = 1'b0;
+reg        dl_end = 1'b0;       // a download has ended since the machine was last let go (its last word may still be on
+                                // its way to the SDRAM then: the download can end as soon as the last byte is taken)
 
 always @(posedge clk) begin
 	dl_d <= download;
@@ -131,14 +141,16 @@ always @(posedge clk) begin
 		hold   <= 23'd0;
 		if (!dl_d) loaded <= 1'b0;
 	end
-	else if (cpuhlt && !pending) begin
-		if (dl_d) loaded <= 1'b1;
-		if (loaded) begin
+	else begin
+		if (dl_d) dl_end <= 1'b1;
+		if (cpuhlt && !pending && (dl_end || dl_d)) begin
+			loaded <= 1'b1;
 			if (!hold[22]) hold <= hold + 23'd1;
 			else begin
 				cpuhlt <= 1'b0;
 				cpurst <= 1'b0;
 				usrrst <= 1'b1;
+				dl_end <= 1'b0;
 			end
 		end
 	end

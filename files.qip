@@ -28,5 +28,10 @@ set_global_assignment -name VHDL_FILE modules/minimig/bram.vhd
 set_global_assignment -name VERILOG_FILE rtl/arcadia_board.v
 set_global_assignment -name VERILOG_FILE rtl/arcadia_amiga.v
 set_global_assignment -name VERILOG_FILE rtl/arcadia_loader.v
+set_global_assignment -name VERILOG_FILE rtl/arcadia_fastload.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/arcadia_video.sv
+
+# rmonic79's CRT Adjust (modules/crt-adjust, see modules/VENDOR.md)
+set_global_assignment -name SYSTEMVERILOG_FILE modules/crt-adjust/crt_adjust.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ArcadiaSystems.sv
 set_global_assignment -name SDC_FILE ArcadiaSystems.sdc

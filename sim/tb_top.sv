@@ -93,15 +93,16 @@ end
 
 //// the loader ////
 wire        cpurst, cpuhlt, usrrst;
-wire        host_cs, host_ack;
-wire [23:1] host_adr;
-wire [15:0] host_wdat;
+wire        ld_own;
+wire [22:1] ld_adr;
+wire [15:0] ld_dat;
 wire        arc_argh;
 
 arcadia_loader loader
 (
 	.clk(clk),
-	.clk7_en(clk7_en),
+	.c1(c1),
+	.c3(c3),
 	.download(dl),
 	.rom_wr(dl_wr),
 	.rom_addr(dl_addr),
@@ -110,10 +111,9 @@ arcadia_loader loader
 	.cpurst(cpurst),
 	.cpuhlt(cpuhlt),
 	.usrrst(usrrst),
-	.host_cs(host_cs),
-	.host_adr(host_adr),
-	.host_wdat(host_wdat),
-	.host_ack(host_ack),
+	.ram_own(ld_own),
+	.ram_adr(ld_adr),
+	.ram_dat(ld_dat),
 	.argh(arc_argh),
 	.loaded(loaded)
 );
@@ -201,13 +201,13 @@ reg         c1_m1, c1_m2;
 always @(posedge clk) begin
 	c1_m1 <= c1;
 	c1_m2 <= c1_m1;
-	if (c1 && !c1_m1) begin
-		s_adr  <= ram_address[22:1];
-		s_rd   <= !_ram_oe && _ram_we;
-		s_wr   <= !_ram_we;
-		s_bhe  <= !_ram_bhe;
-		s_ble  <= !_ram_ble;
-		s_wdat <= ram_data;
+	if (c1 && !c1_m1) begin                 // the machine's chip bus, or the ROM loader's write in its slot (ArcadiaSystems.sv)
+		s_adr  <= ld_own ? ld_adr : ram_address[22:1];
+		s_rd   <= !ld_own && !_ram_oe && _ram_we;
+		s_wr   <= ld_own || !_ram_we;
+		s_bhe  <= ld_own || !_ram_bhe;
+		s_ble  <= ld_own || !_ram_ble;
+		s_wdat <= ld_own ? ld_dat : ram_data;
 	end
 	if (c1_m1 && !c1_m2) begin
 		if (s_rd) rd_q <= mem[s_adr];
@@ -261,11 +261,11 @@ arcadia_amiga minimig
 	.cpurst       (cpurst           ),
 	.cpuhlt       (cpuhlt           ),
 	.usrrst       (usrrst           ),
-	.host_cs      (host_cs          ),
-	.host_adr     (host_adr         ),
-	.host_we      (host_cs          ),
-	.host_wdat    (host_wdat        ),
-	.host_ack     (host_ack         ),
+	.host_cs      (1'b0             ),
+	.host_adr     (23'd0            ),
+	.host_we      (1'b0             ),
+	.host_wdat    (16'd0            ),
+	.host_ack     (                 ),
 
 	.arc_argh     (arc_argh         ),
 	.coin1        (coin1            ),

@@ -1,16 +1,16 @@
-Fitter Status : Successful - Wed Oct 21 02:35:27 2026
+Fitter Status : Successful - Wed Oct 21 05:16:22 2026
 Quartus Prime Version : 17.0.2 Build 602 07/19/2017 SJ Lite Edition
 Revision Name : ArcadiaSystems
 Top-level Entity Name : sys_top
 Family : Cyclone V
 Device : 5CSEBA6U23I7
 Timing Models : Final
-Logic utilization (in ALMs) : 14,207 / 41,910 ( 34 % )
-Total registers : 20488
+Logic utilization (in ALMs) : 14,652 / 41,910 ( 35 % )
+Total registers : 21233
 Total pins : 145 / 314 ( 46 % )
 Total virtual pins : 0
-Total block memory bits : 1,047,804 / 5,662,720 ( 19 % )
-Total RAM Blocks : 146 / 553 ( 26 % )
+Total block memory bits : 1,099,079 / 5,662,720 ( 19 % )
+Total RAM Blocks : 154 / 553 ( 28 % )
 Total DSP Blocks : 57 / 112 ( 51 % )
 Total HSSI RX PCSs : 0
 Total HSSI PMA RX Deserializers : 0

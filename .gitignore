@@ -43,3 +43,10 @@ dist/*
 # fx68k microcode links made by sim/run_sys.sh
 sim/microrom.mem
 sim/nanorom.mem
+
+# the MiSTer top-level bench (sim/emu): its build, logs, fx68k microcode links, saved models
+sim/emu/obj_*/
+sim/emu/*.log
+sim/emu/microrom.mem
+sim/emu/nanorom.mem
+*.sav

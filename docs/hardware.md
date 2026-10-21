@@ -137,10 +137,10 @@ The core is Minimig-AGA (vendored in `modules/minimig`, see `modules/VENDOR.md`)
 | | Minimig on MiSTer | this core |
 |---|---|---|
 | configuration | sent by the HPS (`userio.v` UIO commands 3, 4, 5, ...) | constants: OCS, NTSC, 68000, 512 KB chip, no slow / fast RAM, no HDD, no floppy |
-| Kickstart | uploaded by the HPS over the UIO host bus (command 0) with the CPU halted | part of the MRA ROM image, written over the same host bus by an ioctl loader |
+| Kickstart | uploaded by the HPS over the UIO host bus (command 0) with the CPU halted | part of the MRA ROM image, written straight into the SDRAM controller by an ioctl loader (or from the DDR3: fast loading) |
 | $800000-$9FFFFF, $F00000-$F7FFFF | Zorro II RAM / unused | ROM board, BIOS, NVRAM and the $9FFFFE register, decoded beside Gary |
 | CIA-A port B | parallel port | coin counters, start, service, DIP |
-| inputs | USB joysticks / mouse / keyboard via the HPS | MiSTer joysticks 1 and 2, coin, start and service buttons |
+| inputs | USB joysticks / mouse / keyboard via the HPS | MiSTer joysticks 1 and 2 with coin and start; service on the keyboard (F2) |
 | NVRAM | none | BRAM, saved to the SD card with the MiSTer NVRAM mechanism |
 
 Removed from the build: AGA, 68020/030, RTG, IDE/Gayle, A2065, Toccata, CDTV, Akiko/CD32, MT-32, UART, floppy drives,
@@ -166,11 +166,20 @@ ROM image (MRA `index="0"`; the layout is fixed by `rtl/arcadia_loader.v` and ev
 | $080010 | 512 KB | BIOS (`user2`, the rest zero; Aaargh: all zero) | $F00000 (SDRAM $700000) |
 | $100010 | 1.5 MB | ROM board (`user3`, the rest the set's fill byte) | $800000 (SDRAM $200000) |
 
-The loader writes the image word by word over Minimig's host bus with the 68000 halted, as Main_MiSTer writes a
-Kickstart to Minimig, and fixes the scrambled low bytes as they pass: the ROM board's first 128 KB with the header's
-permutation, the BIOS's first 128 KB with OnePlay's when the BIOS's first word is not `$4AFC`. It holds the 68000 in
-reset from power-on and during every download (the NVRAM file comes after the ROMs), and lets it go about 150 ms after
-the last one with a machine reset.
+The loader fixes the scrambled low bytes as they pass (the ROM board's first 128 KB with the header's permutation, the
+BIOS's first 128 KB with OnePlay's when the BIOS's first word is not `$4AFC`) and writes the image word by word straight
+into the SDRAM controller's chip port, one word in a 7 MHz slot, in place of the machine's own access, at the addresses
+the SRAM bridge gives those regions (the last column above). Minimig's way, Main_MiSTer writing a Kickstart over the
+68000's bus, takes a bus cycle (0.8 us) a word: the 2.5 MB image took 1.1 s that way however fast it came. Now the
+loader keeps up with whatever sends it the image: in the simulated top level a fast load has it in memory 0.39 s after
+it starts. The loader holds the 68000 in reset from power-on and during every download (the NVRAM file comes after the
+ROMs), and lets it go about 150 ms after the last one ends and its last word is written, with a machine reset.
+
+Fast loading: the MRAs carry `address="0x32000000"` on the ROM image, the attribute other MiSTer arcade cores use. A
+Main_MiSTer that knows it copies the assembled image into the DDR3 at that byte address in one go and sends a download
+with no data whose start address is the image's length; `rtl/arcadia_fastload.v` then reads the image back in 256-byte
+bursts and hands it to the loader byte by byte, as the ioctl port would, so the result is the same as a streamed load.
+A Main_MiSTer that ignores the attribute streams the image (its download starts at address 0).
 
 How the OnePlay BIOS takes over (seen in MAME and in the simulation): its resident tag at `$F00000` ("strap", priority
 -59, init at `$9902BC`, so it runs from the `$980000` window) points ExecBase's CoolCapture at `$990342`. It puts
