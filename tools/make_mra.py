@@ -106,24 +106,28 @@ def main():
     for s in A.SETS:
         if s['not_working']:
             continue
-        md5 = 'None'
-        if romdir:
-            img = arcadia_rom.build(s, romdir)
-            md5 = hashlib.md5(img).hexdigest()
-        text = mra_text(s, md5)
         if s['parent'] == 'ar_bios':
             d = MRA_DIR
         else:
             d = os.path.join(MRA_DIR, '_alternatives', '_' + titles[s['parent']])
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, file_name(s['title']))
-        with open(path, 'w', encoding='utf-8', newline='\n') as f:
-            f.write(text)
+
+        def write(md5):
+            with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(mra_text(s, md5))
+
+        write('None')
         if romdir:
+            # Main_MiSTer's md5 is over each part's bytes in the order of the MRA (support/arcade/mra_loader.cpp, rom_data),
+            # not over the assembled image: mra_build.py computes it; the assembled image must equal arcadia_rom.py's
+            img = arcadia_rom.build(s, romdir)
             zips = '|'.join(os.path.join(romdir, z) for z in
                             [s['name'] + '.zip', s['parent'] + '.zip', 'ar_bios.zip'] if os.path.exists(os.path.join(romdir, z)))
-            built, _ = mra_build.build(path, zips)
+            built, md5 = mra_build.build(path, zips)
             assert bytes(built) == bytes(img), s['name']
+            write(md5)
+            assert mra_build.build(path, zips)[1] == md5
         n += 1
         print('%-9s %s' % (s['name'], os.path.relpath(path, ROOT)))
     print('%d MRAs%s' % (n, ', each checked against tools/arcadia_rom.py' if romdir else ''))

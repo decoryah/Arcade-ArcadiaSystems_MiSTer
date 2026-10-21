@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Taken unchanged from plasticbugs/analogue-pocket-gaiapolis (tools/mra_build.py, GPL-3.0); here it builds the
-# simulation images from mra/*.mra:  python tools/mra_build.py "mra/Gaiapolis (World ver EAF).mra" gaiapols.zip out.rom
+# Taken from plasticbugs/analogue-pocket-gaiapolis (tools/mra_build.py, GPL-3.0), by way of the owner's Rabbit core, with
+# one change: the md5 it checks is Main_MiSTer's (over each part's bytes in the order of the .mra), not the image's.
+#   python3 tools/mra_build.py "mra/Space Ranger (Arcadia, V 2.0).mra" "<romdir>/ar_sprg.zip|<romdir>/ar_bios.zip" out.rom
 """Build the Pocket .rom image for the Gaiapolis core from a MAME romset.
 
 A core is FPGA gateware: it cannot unzip a romset or run a script, so the ROM
@@ -168,20 +169,26 @@ def build(mra_path, romset_path, verbose=False):
         sys.exit('error: no <rom> element in the .mra')
     parts = load_parts(romset_path)
     image = bytearray()
+    # Arcadia core: the md5 is Main_MiSTer's (support/arcade/mra_loader.cpp, rom_data): over each part's bytes in the
+    # order of the .mra, before interleaving, not over the assembled image
+    md5 = hashlib.md5()
     for node in rom:
         if node.tag == 'part':
             label, data = get_part(parts, node)
+            md5.update(data)
         elif node.tag == 'interleave':
             label, data = do_interleave(parts, node)
+            for child in node:
+                md5.update(get_part(parts, child)[1])
         else:
             continue
         if verbose:
             print(f'  {len(image):#08x}  {len(data):7d}  {label}')
         image += data
     expected = rom.get('md5')
-    actual = hashlib.md5(image).hexdigest()
+    actual = md5.hexdigest()
     if expected and expected.lower() != 'none' and expected.lower() != actual:
-        sys.exit(f'error: built image md5 {actual} does not match the .mra ({expected})')
+        sys.exit(f'error: MiSTer md5 {actual} does not match the .mra ({expected})')
     return bytes(image), actual
 
 

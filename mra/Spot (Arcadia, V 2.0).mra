@@ -14,7 +14,7 @@
          default), the ROM board (1.5 MB). The ROMs stay as dumped: the core unscrambles them.
          Expects the MAME 0.289 merged romset or the split sets. Written by tools/make_mra.py. -->
     <buttons names="Button 1,Button 2,Start,Coin,Service" default="A,B,Start,Select,R"/>
-    <rom index="0" zip="ar_spot.zip|ar_bios.zip" md5="111445ef62bda544874f260319ebd25f">
+    <rom index="0" zip="ar_spot.zip|ar_bios.zip" md5="3b891694769f89569ced619711dbda36">
         <!-- header -->
         <part>07 06 05 04 03 02 01 00 00 00 00 00 00 00 00 00</part>
         <!-- kickstart: Kickstart 1.3, twice -->
