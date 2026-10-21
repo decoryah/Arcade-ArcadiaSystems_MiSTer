@@ -2,11 +2,13 @@
 # MAME 0.289 runs with tools/lua/arcadia_dump.lua (Git Bash on Windows): a fresh NVRAM every run (MAME's nvram is deleted first),
 # so runs repeat.
 #   tools/mame_dump.sh <set> <out dir> <frames "a,b,c"> [schedule file] [last frame] [snap every]
-# MAME, its ROM path and a work directory are taken from MAME / ROMPATH / WORK (defaults: the owner's).
-MAME=${MAME:-/c/repos/mame0289/mame.exe}
-ROMPATH=${ROMPATH:-C:/repos/arcsystems-mister/work/roms}
-WORK=${WORK:-/c/repos/arcsystems-mister/work/mame_run}
+# MAME, its ROM path and a work directory are taken from MAME / ROMPATH / WORK (defaults: the owner's MAME; the ROMs and the
+# work directory in the scratch folder work/ next to the repository).
 HERE=$(cd "$(dirname "$0")" && pwd)
+SCRATCH=$(cd "$HERE/../.." && pwd)/work
+MAME=${MAME:-/c/repos/mame0289/mame.exe}
+ROMPATH=${ROMPATH:-$(cygpath -m "$SCRATCH/roms" 2>/dev/null || echo "$SCRATCH/roms")}
+WORK=${WORK:-$SCRATCH/mame_run}
 SET="$1"; OUT="$2"; FR="$3"; SCHEDF="$4"; LASTF="$5"; EVERY="$6"
 mkdir -p "$OUT" "$WORK"
 [ -n "$SCHEDF" ] && SCHEDF="$(cygpath -m "$(realpath "$SCHEDF")" 2>/dev/null || echo "$SCHEDF")"
